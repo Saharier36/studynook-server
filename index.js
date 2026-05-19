@@ -31,10 +31,10 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/rooms/:roomsId", async (req, res) => {
-      const { roomsId } = req.params;
+    app.get("/rooms/:id", async (req, res) => {
+      const { id } = req.params;
       const result = await roomsCollection.findOne({
-        _id: new ObjectId(roomsId),
+        _id: new ObjectId(id),
       });
       res.send(result);
     });
