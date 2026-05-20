@@ -2,8 +2,9 @@ const express = require("express");
 const dotenv = require("dotenv");
 dotenv.config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const cors = require("cors");
 const app = express();
+const cors = require("cors");
+app.use(express.json());
 app.use(cors());
 const port = process.env.PORT || 5000;
 
@@ -46,8 +47,9 @@ async function run() {
     });
 
     app.post("/rooms", async (req, res) => {
-      const room = req.body;
-      const result = await roomsCollection.insertOne(room);
+      const newRoom = req.body;
+      const result = await roomsCollection.insertOne(newRoom);
+      console.log(result);
       res.send(result);
     });
 
