@@ -53,6 +53,16 @@ async function run() {
       res.send(result);
     });
 
+    app.patch("/rooms/:id", async (req, res) => {
+      const { id } = req.params;
+      const updatedData = req.body;
+      const result = await roomsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedData },
+      );
+      res.send(result);
+    });
+
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
