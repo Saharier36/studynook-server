@@ -26,6 +26,7 @@ async function run() {
     const db = client.db("studynookdb");
     const roomsCollection = db.collection("rooms");
     const bookingCollection = db.collection("bookings");
+    const usersCollection = db.collection("user");
 
     app.get("/rooms", async (req, res) => {
       const cursor = await roomsCollection.find();
@@ -101,6 +102,11 @@ async function run() {
         ...bookingData,
         status: "confirmed",
       });
+      await usersCollection.updateOne(
+        { _id: new ObjectId(bookingData.userId) },
+        { $push: { bookings: result.insertedId.toString() } },
+      );
+
       res.send(result);
     });
 
@@ -131,7 +137,10 @@ async function run() {
         { _id: new ObjectId(id) },
         { $set: { status: "cancelled" } },
       );
-
+     await usersCollection.updateOne(
+       { _id: new ObjectId(userId) },
+       { $pull: { bookings: id } },
+     );
       res.send(result);
     });
 
