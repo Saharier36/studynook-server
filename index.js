@@ -72,11 +72,62 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/booking", async(req,res)=>{
-      const bookingData = req.body
-      const result = await bookingCollection.insertOne(bookingData)
-      res.send(result)
-    })
+    app.post("/booking", async (req, res) => {
+      const bookingData = req.body;
+
+      const conflict = await bookingCollection.findOne({
+        roomId: bookingData.roomId,
+        date: bookingData.date,
+        status: "confirmed",
+        $or: [
+          {
+            startTime: { $lt: bookingData.endTime },
+            endTime: { $gt: bookingData.startTime },
+          },
+        ],
+      });
+      if (conflict) {
+        return res.status(409).json({
+          message: "This time slot is already booked for the selected room.",
+        });
+      }
+      const result = await bookingCollection.insertOne({
+        ...bookingData,
+        status: "confirmed",
+      });
+      res.send(result);
+    });
+
+    app.get("/bookings", async (req, res) => {
+      const { userId } = req.query;
+      const query = userId ? { userId } : {};
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.patch("/booking/:id/cancel", async (req, res) => {
+      const { id } = req.params;
+      const { userId } = req.body;
+
+      const booking = await bookingCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+
+      if (booking.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const result = await bookingCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: "cancelled" } },
+      );
+
+      res.send(result);
+    });
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
