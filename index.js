@@ -25,6 +25,7 @@ async function run() {
     await client.connect();
     const db = client.db("studynookdb");
     const roomsCollection = db.collection("rooms");
+    const bookingCollection = db.collection("bookings");
 
     app.get("/rooms", async (req, res) => {
       const cursor = await roomsCollection.find();
@@ -70,6 +71,12 @@ async function run() {
       });
       res.send(result);
     });
+
+    app.post("/booking", async(req,res)=>{
+      const bookingData = req.body
+      const result = await bookingCollection.insertOne(bookingData)
+      res.send(result)
+    })
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
