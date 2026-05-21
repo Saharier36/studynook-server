@@ -33,13 +33,19 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/rooms/:id", async (req, res) => {
-      const { id } = req.params;
-      const result = await roomsCollection.findOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
+   app.get("/rooms/:id", async (req, res) => {
+     const { id } = req.params;
+     const result = await roomsCollection.findOne({
+       _id: new ObjectId(id),
+     });
+
+     const bookingCount = await bookingCollection.countDocuments({
+       roomId: id,
+       status: "confirmed",
+     });
+
+     res.send({ ...result, bookingCount });
+   });
 
     app.get("/featured-rooms", async (req, res) => {
       const cursor = await roomsCollection.find().limit(6);
