@@ -4,11 +4,16 @@ dotenv.config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const cors = require("cors");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 app.use(express.json());
 app.use(cors());
 const port = process.env.PORT || 5000;
 
 const uri = process.env.MONGODB_URI;
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+);
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -18,6 +23,26 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
+
+const verifyToken = async (req, res, next) => {
+  const { authorization } = req.headers;
+  const token = authorization?.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const JWKS = createRemoteJWKSet(
+      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+    );
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    next();
+  } catch (error) {
+    console.error("Token validation failed:", error);
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+};
 
 async function run() {
   try {
@@ -54,32 +79,42 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/rooms", async (req, res) => {
+    app.post("/rooms", verifyToken, async (req, res) => {
       const newRoom = req.body;
       const result = await roomsCollection.insertOne(newRoom);
       console.log(result);
       res.send(result);
     });
 
-    app.patch("/rooms/:id", async (req, res) => {
-      const { id } = req.params;
-      const updatedData = req.body;
-      const result = await roomsCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updatedData },
-      );
-      res.send(result);
-    });
+   app.patch("/rooms/:id", verifyToken, async (req, res) => {
+     const { id } = req.params;
+     const updatedData = req.body;
 
-    app.delete("/rooms/:id", async (req, res) => {
-      const { id } = req.params;
-      const result = await roomsCollection.deleteOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
+     const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
+     if (room.owner.id !== req.user.sub) {
+       return res.status(403).json({ message: "Forbidden" });
+     }
 
-    app.post("/booking", async (req, res) => {
+     const result = await roomsCollection.updateOne(
+       { _id: new ObjectId(id) },
+       { $set: updatedData },
+     );
+     res.send(result);
+   });
+
+   app.delete("/rooms/:id", verifyToken, async (req, res) => {
+     const { id } = req.params;
+
+     const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
+     if (room.owner.id !== req.user.sub) {
+       return res.status(403).json({ message: "Forbidden" });
+     }
+
+     const result = await roomsCollection.deleteOne({ _id: new ObjectId(id) });
+     res.send(result);
+   });
+
+    app.post("/booking", verifyToken, async (req, res) => {
       const bookingData = req.body;
 
       const conflict = await bookingCollection.findOne({
@@ -117,7 +152,7 @@ async function run() {
       res.send(result);
     });
 
-    app.patch("/booking/:id/cancel", async (req, res) => {
+    app.patch("/booking/:id/cancel", verifyToken, async (req, res) => {
       const { id } = req.params;
       const { userId } = req.body;
 
@@ -137,14 +172,14 @@ async function run() {
         { _id: new ObjectId(id) },
         { $set: { status: "cancelled" } },
       );
-     await usersCollection.updateOne(
-       { _id: new ObjectId(userId) },
-       { $pull: { bookings: id } },
-     );
+      await usersCollection.updateOne(
+        { _id: new ObjectId(userId) },
+        { $pull: { bookings: id } },
+      );
       res.send(result);
     });
 
-    app.get("/my-listings", async (req, res) => {
+    app.get("/my-listings", verifyToken, async (req, res) => {
       const { userId } = req.query;
       const result = await roomsCollection
         .find({ "owner.id": userId })
