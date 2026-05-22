@@ -5,17 +5,20 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const app = express();
 const cors = require("cors");
 const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
+
 app.use(express.json());
-app.use(cors());
-const port = process.env.PORT || 5000;
-
-const uri = process.env.MONGODB_URI;
-
-const JWKS = createRemoteJWKSet(
-  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+app.use(
+  cors({
+    origin: ["https://studynook-zeta.vercel.app", "http://localhost:3000"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
 );
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+const port = process.env.PORT || 5000;
+const uri = process.env.MONGODB_URI;
+
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -46,7 +49,6 @@ const verifyToken = async (req, res, next) => {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
     const db = client.db("studynookdb");
     const roomsCollection = db.collection("rooms");
@@ -55,13 +57,11 @@ async function run() {
 
     app.get("/rooms", async (req, res) => {
       const { search, amenities } = req.query;
-
       const query = {};
 
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
-
       if (amenities) {
         const amenitiesArray = amenities.split(",");
         query.amenities = { $in: amenitiesArray };
@@ -97,33 +97,33 @@ async function run() {
       res.send(result);
     });
 
-   app.patch("/rooms/:id", verifyToken, async (req, res) => {
-     const { id } = req.params;
-     const updatedData = req.body;
+    app.patch("/rooms/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
+      const updatedData = req.body;
 
-     const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
-     if (room.owner.id !== req.user.sub) {
-       return res.status(403).json({ message: "Forbidden" });
-     }
+      const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
+      if (room.owner.id !== req.user.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
 
-     const result = await roomsCollection.updateOne(
-       { _id: new ObjectId(id) },
-       { $set: updatedData },
-     );
-     res.send(result);
-   });
+      const result = await roomsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedData },
+      );
+      res.send(result);
+    });
 
-   app.delete("/rooms/:id", verifyToken, async (req, res) => {
-     const { id } = req.params;
+    app.delete("/rooms/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
 
-     const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
-     if (room.owner.id !== req.user.sub) {
-       return res.status(403).json({ message: "Forbidden" });
-     }
+      const room = await roomsCollection.findOne({ _id: new ObjectId(id) });
+      if (room.owner.id !== req.user.sub) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
 
-     const result = await roomsCollection.deleteOne({ _id: new ObjectId(id) });
-     res.send(result);
-   });
+      const result = await roomsCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
 
     app.post("/booking", verifyToken, async (req, res) => {
       const bookingData = req.body;
@@ -139,15 +139,18 @@ async function run() {
           },
         ],
       });
+
       if (conflict) {
         return res.status(409).json({
           message: "This time slot is already booked for the selected room.",
         });
       }
+
       const result = await bookingCollection.insertOne({
         ...bookingData,
         status: "confirmed",
       });
+
       await usersCollection.updateOne(
         { _id: new ObjectId(bookingData.userId) },
         { $push: { bookings: result.insertedId.toString() } },
@@ -183,10 +186,12 @@ async function run() {
         { _id: new ObjectId(id) },
         { $set: { status: "cancelled" } },
       );
+
       await usersCollection.updateOne(
         { _id: new ObjectId(userId) },
         { $pull: { bookings: id } },
       );
+
       res.send(result);
     });
 
@@ -205,12 +210,13 @@ async function run() {
     // await client.close();
   }
 }
+
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
   res.send("Server is running! Welcome to Study Nook.");
 });
-
 app.listen(port, () => {
   console.log(`Server is listening on port ${port}`);
 });
+module.exports = app;
