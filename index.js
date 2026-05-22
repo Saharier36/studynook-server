@@ -54,8 +54,20 @@ async function run() {
     const usersCollection = db.collection("user");
 
     app.get("/rooms", async (req, res) => {
-      const cursor = await roomsCollection.find();
-      const result = await cursor.toArray();
+      const { search, amenities } = req.query;
+
+      const query = {};
+
+      if (search) {
+        query.title = { $regex: search, $options: "i" };
+      }
+
+      if (amenities) {
+        const amenitiesArray = amenities.split(",");
+        query.amenities = { $in: amenitiesArray };
+      }
+
+      const result = await roomsCollection.find(query).toArray();
       res.send(result);
     });
 
@@ -82,7 +94,6 @@ async function run() {
     app.post("/rooms", verifyToken, async (req, res) => {
       const newRoom = req.body;
       const result = await roomsCollection.insertOne(newRoom);
-      console.log(result);
       res.send(result);
     });
 
